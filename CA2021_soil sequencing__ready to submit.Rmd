@@ -1,0 +1,905 @@
+---
+title: 'Aggregative soil sampling using boot covers compared to soil grabs from commercial romaine fields shows similar indicator organism and microbial community recovery'
+Auther: Jiaying Wu
+Date: Feb 19, 2023
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(23)
+```
+
+
+# Install dada2
+
+```{r}
+#BiocManager::install(version = "3.13") #used this version because matches the R 4.1.2 used
+#BiocManager::install("dada2") #use version that matches bioconductor
+```
+
+
+# Libraries
+
+```{r}
+library(dada2)
+library(ggplot2)
+library(tidyverse)
+library(phyloseq)
+library(ShortRead)
+library(Biostrings)
+library(reshape2)
+library(DECIPHER)
+library(vegan)
+library(data.table)
+library(dplyr)
+library(decontam)
+library(DESeq2)
+library(ggpubr)
+library(RVAideMemoire)
+library(UpSetR)
+library(MicEco)
+library(scales)
+library(microbiome)
+```
+
+
+# Data input
+
+```{r}
+#set path to folder in which I have my data
+path <- "/media/stasiewiczlab/data/Tina/fastq/Soil"
+
+#path to the specific fastq files within the folder
+fn1 <- file.path(path, c("Stasiewicz_16S_demult.16S_For_bc1002--16S_Rev_bc1062.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1002--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1002--16S_Rev_bc1075.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1003--16S_Rev_bc1062.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1003--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1003--16S_Rev_bc1075.fastq", 
+                        "Stasiewicz_16S_demult.16S_For_bc1004--16S_Rev_bc1062.fastq", 
+                        "Stasiewicz_16S_demult.16S_For_bc1004--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1004--16S_Rev_bc1075.fastq", 
+                        "Stasiewicz_16S_demult.16S_For_bc1005--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1005--16S_Rev_bc1075.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1006--16S_Rev_bc1062.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1006--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1006--16S_Rev_bc1075.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1007--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1007--16S_Rev_bc1075.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1008--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1008--16S_Rev_bc1075.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1009--16S_Rev_bc1062.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1009--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1009--16S_Rev_bc1075.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1010--16S_Rev_bc1062.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1010--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1010--16S_Rev_bc1075.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1011--16S_Rev_bc1062.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1011--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1011--16S_Rev_bc1075.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1012--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1012--16S_Rev_bc1075.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1015--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1015--16S_Rev_bc1075.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1020--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1020--16S_Rev_bc1075.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1022--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1022--16S_Rev_bc1075.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1024--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1024--16S_Rev_bc1075.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1081--16S_Rev_bc1062.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1081--16S_Rev_bc1065.fastq",
+                        "Stasiewicz_16S_demult.16S_For_bc1081--16S_Rev_bc1075.fastq"
+))
+```
+
+
+# Quality control
+
+```{r}
+#inspect read quality profiles by plotting quality scores using dada2 for first 5 files
+qual_plot <- plotQualityProfile(fn1[1:5])
+qual_plot + geom_hline(yintercept = 25) + geom_vline(xintercept = 1600)
+
+#plot all the read quality scores aggregated together, while this is easier to look at than one plot at a time
+fn_qual_plot <- plotQualityProfile(fn1, aggregate = T)
+fn_qual_plot + geom_hline(yintercept = 25) + geom_vline(xintercept = 1600)
+```
+
+
+# Trim primers and quality filter reads
+
+```{r}
+#primers are the PacBio primers
+FWprimer <- "AGRGTTYGATYMTGGCTCAG"
+RVprimer <- "RGYTACCTTGTTACGACTT"
+rc <- dada2::rc
+
+#remove primers and orient reads
+PrimeRemove <- file.path(path, "PrimeRemove", basename(fn1))
+removeprimer <- dada2::removePrimers(fn1, PrimeRemove, primer.fwd = FWprimer, primer.rev = rc(RVprimer), orient = T, verbose = T)
+
+#inspect read quality profiles
+plotQualityProfile(PrimeRemove[1:2])
+
+#inspect length distribution of sequences
+lens.fn1 <- lapply(PrimeRemove, function(fn1) nchar(getSequences(fn1)))
+lens <- do.call(c, lens.fn1)
+hist(lens, 100)
+
+#check out the results
+head(removeprimer)
+colMeans(removeprimer) ## mean number of reads in and out
+mean(1-(removeprimer[,2]/removeprimer[,1])) ## mean % filtered reads
+fivenum(1-(removeprimer[,2]/removeprimer[,1])) ## five number report for % filtered
+hist(1-(removeprimer[,2]/removeprimer[,1]))  ## hist #mean % filtered reads
+tail(sort(
+  1-(removeprimer[,2]/removeprimer[,1])
+  ),  n = 10
+)
+
+#filter and trim
+filtered <- file.path(path, "PrimeRemove", "filtered", basename(fn1))
+track <- filterAndTrim(PrimeRemove, filtered,  maxLen = 1600, minLen = 1200, minQ = 3, rm.phix = FALSE, maxEE = 2, verbose = TRUE)
+
+#inspect length distribution of sequences 
+lens.PrimeRemove <- lapply(filtered, function(PrimeRemove) nchar(getSequences(PrimeRemove)))
+lens <- do.call(c, lens.PrimeRemove)
+hist(lens, 100)
+
+#check out the results
+head(track)
+colMeans(track)#mean number of reads in and out
+mean(1-(track[,2]/track[,1])) #mean % filtered reads
+fivenum(1-(track[,2]/track[,1])) #five number report for % filtered
+hist(1-(track[,2]/track[,1]))  # hist #mean % filtered reads
+tail(sort(
+  1-(track[,2]/track[,1])
+  ),  n = 10
+)
+```
+
+
+# Dereplicate, learn error rates, and run DADA2
+
+```{r}
+#dereplicate identical reads
+drp <- derepFastq(filtered, verbose = T)
+
+#learn the error rates
+err <- learnErrors(drp, errorEstimationFunction = PacBioErrfun, BAND_SIZE = 32, multithread = T)
+
+#visualize the estimated error rates
+plotErrors(err, nominalQ = TRUE)
+
+#high resolution sample inference, use these data to denoise our reads
+dd <- dada(drp, err = err, BAND_SIZE = 32, multithread = T)
+
+#inspecting the returned dada-class object
+dd
+```
+
+
+# Construct sequence table
+
+```{r}
+#construct sequence table 
+seqtab <- makeSequenceTable(dd)
+
+#check the number of sequence variants
+dim(seqtab) 
+seqtable <- table(nchar(getSequences(seqtab))) 
+
+#inspect distribution of sequence lengths
+meansequencelength <- as.data.frame(seqtable)
+
+#inspect mean sequence length
+dna <- DNAStringSet(getSequences(seqtab)) 
+meansequencelength <- as.data.frame(table(nchar(getSequences(dna))))
+meansequencelength$Var1 <- as.numeric(as.character(meansequencelength$Var1))
+meansequencelength$total <- meansequencelength$Var1*meansequencelength$Freq
+sum(meansequencelength$total)/sum(meansequencelength$Freq)
+```
+
+
+# Remove chimeras and make a table
+
+```{r}
+bim <- isBimeraDenovo(seqtab, minFoldParentOverAbundance=3.5)
+table(bim)
+sum(seqtab[,bim])/sum(seqtab)
+
+seqtab.nochim <- removeBimeraDenovo(seqtab, method = "consensus", multithread = TRUE, verbose = TRUE)
+dim(seqtab.nochim)
+sum(seqtab.nochim)/sum(seqtab)
+write.csv(seqtab.nochim, "Soil_seqtab_nochim.csv")
+```
+
+
+# Track reads in all preprocessing
+
+```{r}
+trackreads <- cbind(ccs = removeprimer[,1], primers = removeprimer[,2], filtered = track[,2], denoised = sapply(dd, function(x) sum(x$denoised)), nochim = rowSums(seqtab.nochim))
+write.csv(trackreads,'trackreads.csv')
+
+
+library(ggplot2)
+library(tidyr)
+
+# read in the csv file
+trackreads <- read.csv("trackreads.csv")
+
+# reshape the data to long format
+trackreads_organizecd <- pivot_longer(trackreads, cols = 2:6, names_to = "steps", values_to = "reads")
+head(trackreads_organizecd)
+# plot the line graph
+p <- ggboxplot(trackreads_organizecd, x = "steps", y = "reads",color = "steps", palette = "jco") + 
+  geom_point(aes(x=as.numeric(steps), y=reads, group=X),colour="black",size=2, alpha=0.7) + 
+  geom_line(aes(x=as.numeric(steps), y=reads, group=X), colour="grey30", linetype="11", alpha=0.7) +
+  labs(x="DADA2 steps", y="Reads")+
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), legend.position = "none", panel.grid.minor = element_blank())+
+  scale_fill_brewer(palette = "Pastel1") +
+  theme(axis.text = element_text(size = 14, color = "black")) +
+  theme(axis.title = element_text(size = 16, color = "black")) +
+  ylim(0, 45000)
+p
+ggsave("Figure. track reads in DADA2 pipeline .jpeg", dpi = 600, width = 7, height = 3.5, units = "in")
+```
+
+
+# Assign taxonomy using the Silva database
+
+```{r}
+#databases that are formatted for use with the DADA2 R package can be found at: https://benjjneb.github.io/dada2/training.html
+taxaSilva <- assignTaxonomy(seqtab.nochim, "/media/stasiewiczlab/data/Tina/fastq/Soil/silva_nr99_v138.1_wSpecies_train_set.fa.gz", tryRC = TRUE, verbose = TRUE)
+write.table(taxaSilva, "Soil_taxaSilva.csv")
+```
+
+
+# Construct phyloseq object
+
+```{r}
+ASVtable <- otu_table(seqtab.nochim, taxa_are_rows=FALSE)
+taxatable <- tax_table(taxaSilva) 
+sampledata <- sample_data(read.csv("/media/stasiewiczlab/data/Tina/fastq/Soil/soil_metadata.csv", header = T, row.names = 1))
+phyloseq_initial <- phyloseq(ASVtable, sampledata, taxatable)
+phyloseq_initial
+saveRDS(phyloseq_initial, 'phyloseq_initial.rds')
+```
+
+
+# Read initial phyloseq object
+
+```{r}
+phyloseq_initial <- readRDS("C:/Users/jw99/Box/seq/phyloseq_initial.rds")
+rownames(phyloseq_initial@otu_table) <- phyloseq_initial@sam_data$SampleID
+rownames(phyloseq_initial@sam_data) <- phyloseq_initial@sam_data$SampleID
+any(taxa_sums(phyloseq_initial) == 0)
+
+# get read counts per sample
+phyloseq_initial_reads <- sample_sums(phyloseq_initial)
+phyloseq_initial_counts <- data.frame(sample_names(phyloseq_initial), phyloseq_initial_reads)
+colnames(phyloseq_initial_counts) <- c("sample_ID", "initial")
+```
+
+
+# Remove mitochondria and chloroplast taxa 
+
+```{r}
+phyloseq_remove_mitochl <- phyloseq_initial %>% subset_taxa(Family!= "Mitochondria" | is.na(Family) & Order!="Chloroplast" | is.na(Order) ) 
+#check reads remaining
+phyloseq_remove_mitochl_df= data.table(as(sample_data(phyloseq_remove_mitochl), "data.frame"), Reads_per_sample = sample_sums(phyloseq_remove_mitochl), keep.rownames = TRUE)
+phyloseq_remove_mitochl_df_plot = ggplot(phyloseq_remove_mitochl_df, aes(Reads_per_sample)) + geom_histogram() + ggtitle("Distribution of reads per sample") + ylab("Sample counts") 
+phyloseq_remove_mitochl
+
+
+# get read counts per sample
+phyloseq_remove_mitochl_reads <- sample_sums(phyloseq_remove_mitochl)
+phyloseq_remove_mitochl_counts <- data.frame(sample_names(phyloseq_remove_mitochl), phyloseq_remove_mitochl_reads)
+colnames(phyloseq_remove_mitochl_counts) <- c("sample_ID", "remove mit&chl")
+```
+
+
+# Define functions
+
+```{r}
+fast_melt = function(physeq){
+  # supports "naked" otu_table as `physeq` input.
+  otutab = as(otu_table(physeq), "matrix")
+  if(!taxa_are_rows(physeq)){otutab <- t(otutab)}
+  otudt = data.table(otutab, keep.rownames = TRUE)
+  setnames(otudt, "rn", "taxaID")
+  # Enforce character taxaID key
+  otudt[, taxaIDchar := as.character(taxaID)]
+  otudt[, taxaID := NULL]
+  setnames(otudt, "taxaIDchar", "taxaID")
+  # Melt count table
+  mdt = melt.data.table(otudt, 
+                        id.vars = "taxaID",
+                        variable.name = "SampleID",
+                        value.name = "count")
+  # Remove zeroes, NAs
+  mdt <- mdt[count > 0][!is.na(count)]
+  # Calculate relative abundance
+  mdt[, RelativeAbundance := count / sum(count), by = SampleID]
+  if(!is.null(tax_table(physeq, errorIfNULL = FALSE))){
+    # If there is a tax_table, join with it. Otherwise, skip this join.
+    taxdt = data.table(as(tax_table(physeq, errorIfNULL = TRUE), "matrix"), keep.rownames = TRUE)
+    setnames(taxdt, "rn", "taxaID")
+    # Enforce character taxaID key
+    taxdt[, taxaIDchar := as.character(taxaID)]
+    taxdt[, taxaID := NULL]
+    setnames(taxdt, "taxaIDchar", "taxaID")
+    # Join with tax table
+    setkey(taxdt, "taxaID")
+    setkey(mdt, "taxaID")
+    mdt <- taxdt[mdt]
+  }
+  return(mdt)
+}
+```
+
+
+# Initial data exploration 
+
+```{r}
+mean(colSums(phyloseq_remove_mitochl@otu_table))
+mean(rowSums(phyloseq_remove_mitochl@otu_table))
+mean(rowSums(phyloseq_remove_mitochl@otu_table)) * 0.00001
+
+#OTUabundance
+##taxa total counts histogram
+tdt = data.table(tax_table(phyloseq_remove_mitochl),
+                 OTUabundance = taxa_sums(phyloseq_remove_mitochl),
+                 OTU = taxa_names(phyloseq_remove_mitochl))
+ggplot(tdt, aes(OTUabundance)) + geom_histogram() + ggtitle("Histogram of Total Counts")
+ggplot(tdt, aes(OTUabundance)) + geom_histogram() + ggtitle("Histogram of Total Counts") + xlim(0, 1000) + ylim (0,50) + theme_bw()
+ggplot(tdt, aes(OTUabundance)) + geom_histogram(breaks=seq(0, 20, by =1)) + ggtitle("Histogram of Total Counts") + theme_bw()
+##count number of singletons, doubletons, etc.
+tdt[(OTUabundance <= 0), .N]
+tdt[(OTUabundance <= 1), .N]
+tdt[(OTUabundance <= 5), .N]
+##calculate the cumulative sum of OTUs that would be filtered at every possible value of such a threshold, from zero to the most-observed OTU.
+taxcumsum = tdt[, .N, by = OTUabundance]
+setkey(taxcumsum, OTUabundance)
+taxcumsum[, CumSum := cumsum(N)]
+#define the plot
+ggplot(taxcumsum, aes(OTUabundance, CumSum)) + 
+  geom_point() +
+  xlab("Filtering Threshold, Minimum Total Counts") +
+  ylab("OTUs Filtered") +
+  ggtitle("OTUs that would be filtered vs. the minimum count threshold")
+##zoom-in on the region between zero and 100 total counts
+ggplot(taxcumsum, aes(OTUabundance, CumSum)) + 
+  geom_point() +
+  xlab("Filtering Threshold, Minimum Total Counts") +
+  ylab("OTUs Filtered") +
+  ggtitle("OTUs that would be filtered vs. the minimum count threshold") + 
+  xlim(0, 100)
+
+
+#prevalence
+##Taxa prevalence histogram, define Prevalence as the number of times an ASVs is observed at least once.
+mdt = fast_melt(phyloseq_remove_mitochl)
+prevdt = mdt[, list(Prevalence = sum(count > 0), 
+                    OTUabundance = sum(count)),
+             by = taxaID]
+ggplot(prevdt, aes(Prevalence)) + geom_histogram() + ggtitle("Histogram of Taxa Prevalence")
+##how many singletons
+prevdt[(Prevalence <= 0), .N]
+prevdt[(Prevalence <= 1), .N]
+prevdt[(Prevalence <= 2), .N]
+##taxa cumulative sum
+prevcumsum = prevdt[, .N, by = Prevalence]
+setkey(prevcumsum, Prevalence)
+prevcumsum[, CumSum := cumsum(N)]
+#define the plot
+ggplot(prevcumsum, aes(Prevalence, CumSum)) + 
+  geom_point() +
+  xlab("Filtering Threshold, Prevalence") +
+  ylab("OTUs Filtered") +
+  ggtitle("OTUs that would be filtered vs. the minimum count threshold")
+
+
+#prevalence vs. OTUabundance
+ggplot(prevdt, aes(Prevalence, OTUabundance)) + geom_point(size = 4, alpha = 0.75) + scale_y_log10()
+
+#Select and document Filtering Criteria and make new phyloseq object with filtered ASVs 
+keepTaxa = prevdt[(Prevalence >= 4 & OTUabundance > 5), taxaID]
+physeq_filtered = prune_taxa(keepTaxa, phyloseq_remove_mitochl)
+physeq_filtered
+
+# get read counts per sample
+physeq_filtered_reads <- sample_sums(physeq_filtered)
+physeq_filtered_counts <- data.frame(sample_names(physeq_filtered), physeq_filtered_reads)
+colnames(physeq_filtered_counts) <- c("sample_ID", "filtered")
+```
+
+
+# Rename ASVs
+
+```{r}
+#more convenient for downstream analysis, automatically retaining the corresponding unique sequence identifier
+dna <- Biostrings::DNAStringSet(taxa_names(physeq_filtered))
+names(dna) <- taxa_names(physeq_filtered)
+physeq_filtered <- merge_phyloseq(physeq_filtered, dna)
+taxa_names(physeq_filtered) <- paste0("ASV", seq(ntaxa(physeq_filtered)))
+```
+
+
+# Rarefication 
+
+```{r}
+sample_sums(physeq_filtered)
+
+jpeg("Figure. rarefaction curve.jpg", res = 600, width = 9, height = 5, units = "in")
+rarecurve(otu_table(physeq_filtered), step = 100, lwd = 2, ylab = "ASVs", label = TRUE, main = "Rarefaction Curve for all samples")
+abline(v = 10549, lty = 2, lwd = 2, col = "red")
+dev.off()
+ps <- rarefy_even_depth(physeq_filtered, rngseed = 711)
+sample_sums(ps)
+ps
+
+# get read counts per sample
+ps_rare_reads <- sample_sums(ps)
+ps__rare_counts <- data.frame(sample_names(ps), ps_rare_reads)
+colnames(ps__rare_counts) <- c("sample_ID", "rarefied")
+```
+
+
+# Track reads
+
+```{r}
+# Merge the three data frames
+trackreads_phyloseq <- cbind(phyloseq_initial_counts, phyloseq_remove_mitochl_counts, physeq_filtered_counts,ps__rare_counts)
+trackreads_phyloseq_new <- trackreads_phyloseq[, -c(3, 5, 7)]
+
+
+# reshape the data to long format
+trackreads_organizecd <- pivot_longer(trackreads_phyloseq_new, cols = 2:5, names_to = "steps", values_to = "reads")
+head(trackreads_organizecd)
+# plot the line graph
+p <- ggboxplot(trackreads_organizecd, x = "steps", y = "reads",color = "steps", palette = "jco") + 
+  geom_point(aes(x=as.numeric(steps), y=reads, group=
+sample_ID),colour="black",size=2, alpha=0.7) + 
+  geom_line(aes(x=as.numeric(steps), y=reads, group=
+sample_ID), colour="grey30", linetype="11", alpha=0.7) +
+  labs(x="Phyloseq steps", y="Reads")+
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(),legend.position = "none", panel.grid.minor = element_blank())+
+  scale_fill_brewer(palette = "Pastel1") +
+  theme(axis.text = element_text(size = 14, color = "black")) +
+  theme(axis.title = element_text(size = 16, color = "black")) +
+  ylim(0, 45000)
+p
+ggsave("Figure. track reads in phyloseq.jpeg", dpi = 300, width = 7, height = 3.5, units = "in")
+```
+
+
+# Check whether the phyloseq object is correct 
+
+```{r}
+# accessing the sample information and sample metadata
+nsamples(ps)
+sample_names(ps)
+sample_variables(ps)
+head(sample_data(ps))
+sample_data(ps)$Reads
+metadata <- data.frame(sample_data(ps))
+head(metadata)
+
+# examining the number of reads for each sample
+sample_sums(ps)
+sort(sample_sums(ps))
+hist(sample_sums(ps), main="Histogram: Read Counts", xlab="Total Reads", 
+     border="blue", col="green", las=1, breaks=12)
+metadata$total_reads <- sample_sums(ps)
+
+# examining the OTU table
+ntaxa(ps)
+head(taxa_names(ps))
+head(taxa_sums(ps))
+(asv_tab <- data.frame(otu_table(ps)[1:5, 1:5]))
+
+# examining the taxonomy
+rank_names(ps)
+head(tax_table(ps))
+head(tax_table(ps)[, 2])
+table(tax_table(ps)[, 2])
+(tax_tab <- data.frame(tax_table(ps)[50:55, ]))
+
+# examining the reference sequences
+head(refseq(ps))
+dada2::nwhamming(as.vector(refseq(ps)[1]), as.vector(refseq(ps)[2]))
+(ref_tab <- data.frame(head(refseq(ps))))
+saveRDS(ps, 'ps.rds')
+```
+
+
+# Read phyloseq object
+
+```{r}
+ps <- readRDS("C:/Users/jw99/Box/seq/ps.rds")
+path<- "C:/Users/jw99/Box/seq"
+```
+
+
+# Set the basics
+
+```{r}
+# define the color and shape
+my_colors <- c("bootie" = "#1B9E77","highreso"= "#D95F02", "compo" = "#7570B3")
+my_shapes <- c("bootie" = 19, "highreso" = 17, "compo" = 15)
+my_comparisons <- list( c("bootie", "highreso"), c("compo", "bootie") )
+metadata <- as(sample_data(ps), "matrix")
+metadata <-as.data.frame(metadata)
+metadata$Reads <- as.numeric(metadata$Reads)
+total_reads <- sum(metadata$Reads, na.rm = TRUE)
+total_reads
+
+ps_otu_table <- as(otu_table(ps), "matrix")
+ps_rel <- transform_sample_counts(ps, function(x) x / sum(x))
+sample_data(ps_rel)$Type<-factor(sample_data(ps_rel)$Type)
+```
+
+
+# Alpha diversity
+
+```{r}
+# calculate alpha diversity
+alpha_plot <- plot_richness(ps, x = "Type", measures = c("Shannon", "Chao1", "Simpson")) 
+# store plot as a new data variable and calculate mean +- standard deviation
+alph_plot_data <- data.table(alpha_plot$data)
+alph_plot_data_summary <- alph_plot_data %>%
+                  group_by(Type, variable) %>%
+                  summarise(avg = mean(value), sd = sd(value)) %>%
+                  arrange(variable)
+alpha_Shannon <- dplyr::filter(alph_plot_data, variable == "Shannon")
+alpha_Chao1 <- dplyr::filter(alph_plot_data, variable == "Chao1")
+alpha_Simpson <- dplyr::filter(alph_plot_data, variable == "Simpson") 
+# shapiro-Wilk test for normality (p > 0.05, normally distributed)
+alpha_Shannon_bootie <- dplyr::filter(alph_plot_data, variable == "Shannon", Type == "bootie")
+shapiro.test(alpha_Shannon_bootie$value) ##not normally distributed
+qqnorm(alpha_Shannon_bootie$value);qqline(alpha_Shannon_bootie$value, col = 2)
+plot(density(alpha_Shannon_bootie$value,na.rm=TRUE))
+
+alpha_Shannon_compo <- dplyr::filter(alph_plot_data, variable == "Shannon", Type == "compo")
+shapiro.test(alpha_Shannon_compo$value) ## normally distributed
+qqnorm(alpha_Shannon_compo$value);qqline(alpha_Shannon_compo$value, col = 2)
+plot(density(alpha_Shannon_compo$value,na.rm=TRUE))
+
+alpha_Shannon_highreso <- dplyr::filter(alph_plot_data, variable == "Shannon", Type == "highreso")
+shapiro.test(alpha_Shannon_highreso$value) ## normally distributed
+qqnorm(alpha_Shannon_highreso$value);qqline(alpha_Shannon_highreso$value, col = 2)
+plot(density(alpha_Shannon_highreso$value,na.rm=TRUE))
+
+  
+alpha_Chao1_bootie <- dplyr::filter(alph_plot_data, variable == "Chao1", Type == "bootie")
+shapiro.test(alpha_Chao1_bootie$value) # normally distributed
+qqnorm(alpha_Chao1_bootie$value);qqline(alpha_Chao1_bootie$value, col = 2)
+plot(density(alpha_Chao1_bootie$value,na.rm=TRUE))
+
+alpha_Chao1_compo <- dplyr::filter(alph_plot_data, variable == "Chao1", Type == "compo")
+shapiro.test(alpha_Chao1_compo$value) #not normally distributed
+qqnorm(alpha_Chao1_compo$value);qqline(alpha_Chao1_compo$value, col = 2)
+plot(density(alpha_Chao1_compo$value,na.rm=TRUE))
+
+alpha_Chao1_highreso <- dplyr::filter(alph_plot_data, variable == "Chao1", Type == "highreso")
+shapiro.test(alpha_Chao1_highreso$value) # normally distributed
+qqnorm(alpha_Chao1_highreso$value);qqline(alpha_Chao1_highreso$value, col = 2)
+plot(density(alpha_Chao1_highreso$value,na.rm=TRUE))
+
+  
+alpha_Simpson_bootie <- dplyr::filter(alph_plot_data, variable == "Simpson", Type == "bootie")
+shapiro.test(alpha_Simpson_bootie$value) #not normally distributed
+qqnorm(alpha_Simpson_bootie$value);qqline(alpha_Simpson_bootie$value, col = 2)
+plot(density(alpha_Simpson_bootie$value,na.rm=TRUE))
+
+alpha_Simpson_compo <- dplyr::filter(alph_plot_data, variable == "Simpson", Type == "compo")
+shapiro.test(alpha_Simpson_compo$value) #not normally distributed
+qqnorm(alpha_Simpson_compo$value);qqline(alpha_Simpson_compo$value, col = 2)
+plot(density(alpha_Simpson_compo$value,na.rm=TRUE))
+
+alpha_Simpson_highreso <- dplyr::filter(alph_plot_data, variable == "Simpson", Type == "highreso")
+shapiro.test(alpha_Simpson_highreso$value) # normally distributed
+qqnorm(alpha_Simpson_highreso$value);qqline(alpha_Simpson_highreso$value, col = 2)
+plot(density(alpha_Simpson_highreso$value,na.rm=TRUE))
+
+
+# Wilcox-test
+alphadiv_wilcoxres <- compare_means(value ~ Type, group.by = "variable", data = alph_plot_data, 
+                                    method = "wilcox", p.adjust.method = "BH")
+alphadiv_wilcoxres
+
+kruskal.test(value ~ Type, data = alpha_Chao1)
+kruskal.test(value ~ Type, data = alpha_Shannon)
+kruskal.test(value ~ Type, data = alpha_Simpson)
+
+# order the table
+alph_plot_data$Type <- factor(alph_plot_data$Type, c("bootie", "compo", "highreso"))  
+
+# make figure
+p <- ggboxplot(alph_plot_data, x = "Type", y = "value", color = "black", shape = "Type",
+                 palette = "Dark2", add = "jitter",  facet.by = "variable", 
+                 add.params = list(color = "Type", alpha = 0.7, size = 0.8), short.panel.labs = TRUE) +
+    facet_grid(~factor(variable, levels=c('Shannon', 'Chao1', 'Simpson')), scale = "free_y") +
+    facet_wrap(~ variable, ncol=4, scales = "free_y")+
+    labs(x="Sample types", y="Alpha diversity value") +
+    scale_fill_brewer(palette = "Pastel1") +
+    theme_bw() + 
+    theme(panel.grid = element_blank(), legend.position = "none",
+           strip.text.x = element_text(size = 11),
+           axis.text = element_text(size = 12, color = "black"), 
+           axis.text.x = element_text(hjust=0.5),
+           axis.title = element_text(size = 14, color = "black", face="bold")) +
+    stat_summary(fun = mean, geom = "point", size = 2, color = "black") +
+    scale_fill_manual(values = my_colors)  +
+    scale_color_manual(values = my_colors) +
+    scale_shape_manual(values = my_shapes)
+
+p + 
+    stat_compare_means(data=alpha_Chao1, comparisons = my_comparisons, label.y = c(1400, 1475, 1550), method = "wilcox", p.adjust.method = "BH") +
+    stat_compare_means(data=alpha_Shannon, comparisons = my_comparisons, label.y = c(6.3, 6.6, 6.9), method = "wilcox", p.adjust.method = "BH") +
+    stat_compare_means(data=alpha_Simpson, comparisons = my_comparisons, label.y = c(0.995, 1.00, 1.005), method = "wilcox", p.adjust.method = "BH")
+ggsave("Figure. alpha diversity.pdf", device = "pdf", width = 5, height = 3.5, units = "in")
+```
+
+
+# Beta diversity (phyloseq plot + adonis and betadisper with phyloseq distance)
+
+```{r}
+# PCoA - Bray Curtis distance
+ps_ordination = ordinate(ps, method="PCoA", distance="bray")
+plot_ordination(ps, ps_ordination, color="Type", shape = "Type") +
+  scale_fill_brewer(palette = "Pastel1")+
+  scale_fill_manual(values = my_colors) +
+  scale_color_manual(values = my_colors) +
+  scale_shape_manual(values = my_shapes) +
+  stat_ellipse() +
+  labs(x="PC1 (15.1%)", y="PC2 (7%)") +
+  geom_point(size = 0.8, alpha = 0.2) +
+  theme_bw() + 
+  theme(panel.grid = element_blank(), legend.position = "none",
+        strip.text.x = element_text(size = 11),
+        axis.text = element_text(size = 12, color = "black"), 
+        axis.text.x = element_text(hjust = 1),
+        axis.title = element_text(size = 14, color = "black", face = "bold")) +
+  annotate("text", x = -0.1, y = 0.23, label = "Pr (> F) = 0.0001", color = "black", size = 4)
+ggsave("Figure.beta diversity by PCoA-Bray Curits distance.pdf", device = "pdf", width = 2.5, height = 3.5, units = "in")
+
+# adonis
+ps_pdist = phyloseq::distance(ps, method="bray")
+set.seed(36)
+adonis2(ps_pdist ~  Type, permutations = 9999, by = "terms", data = metadata, na.action = na.omit)
+pairwise.perm.manova(ps_pdist, phyloseq::sample_data(ps)$Type, p.method = "BH")
+
+# betadisper
+ps_pdist_betadisper<- betadisper(ps_pdist, phyloseq::sample_data(ps)$Type)
+set.seed(36)
+permutest(ps_pdist_betadisper, pairwise=TRUE, permutations=9999)
+
+# p-values
+stat.test <- tibble::tribble(
+  ~group1, ~group2,   ~p.adj,
+    "bootie",     "highreso", 0.09,
+      "compo",     "bootie", 0.08
+  )
+stat.test
+
+# make a cute betadisper figure
+ps_pdist_betadisper_distance <- ps_pdist_betadisper$distance
+ps_pdist_betadisper_distance_df <- data.frame(SampleID = names(ps_pdist_betadisper$distance), value = ps_pdist_betadisper$distance)
+ps_pdist_betadisper_distance_df$entry_id <- row.names(ps_pdist_betadisper_distance_df)
+ps_pdist_betadisper_distance_df$Type <- ifelse(substr(ps_pdist_betadisper_distance_df$entry_id, 1, 1) %in% c("t", "b"), "bootie",
+                  ifelse(substr(ps_pdist_betadisper_distance_df$entry_id, 1, 1) == "c", "compo",
+                         ifelse(substr(ps_pdist_betadisper_distance_df$entry_id, 1, 1) == "h", "highreso", NA)))
+ps_pdist_betadisper_distance_df$Type <- factor(ps_pdist_betadisper_distance_df$Type, c("bootie", "compo", "highreso")) 
+
+p <- ggboxplot(ps_pdist_betadisper_distance_df, x = "Type", y = "value", color = "black", shape = "Type",
+                 palette = "Dark2", add = "jitter", add.params = list(color = "Type", alpha = 0.7, size = 0.8), short.panel.labs = TRUE) +
+    labs(x="Sample types", y="Distance to centroid") +
+    scale_fill_brewer(palette = "Pastel1") +
+    theme_bw() + 
+    theme(panel.grid = element_blank(), legend.position = "none",
+           strip.text.x = element_text(size = 11),
+           axis.text = element_text(size = 12, color = "black"), 
+           axis.text.x = element_text(hjust=1),
+           axis.title = element_text(size = 14, color = "black", face="bold")) +
+    stat_summary(fun = mean, geom = "point", size = 2, color = "black") +
+    scale_fill_manual(values = my_colors)  +
+    scale_color_manual(values = my_colors) +
+    scale_shape_manual(values = my_shapes)
+
+p +stat_pvalue_manual(stat.test, y.position = 0.47, step.increase = 0.1, label = "p.adj") + 
+  annotate("text", x = 1.2, y = 0.15, label = "Pr (> F) = 0.08", color = "black", size = 4)
+ggsave("Figure.beta disper.pdf", device = "pdf", width = 2.5, height = 3.5, units = "in")
+```
+
+
+# Shared phyla
+
+```{r}
+# shared at phylum level
+ps_rel_phylum <- phyloseq::tax_glom(ps_rel, "Phylum")
+phyloseq::taxa_names(ps_rel_phylum) <- phyloseq::tax_table(ps_rel_phylum)[, "Phylum"]
+phyloseq::otu_table(ps_rel_phylum)
+
+# Shared phylum plot
+ps_phy_venn_data <- merge_samples(ps_rel_phylum, 'Type', fun = sum)
+ps_phy_venn_obj <- as.data.frame(t(otu_table(ps_phy_venn_data)))
+ps_phy_venn_obj_binary <- sapply(ps_phy_venn_obj, function(x) ifelse(x > 0, 1, 0),
+                          USE.NAMES = T)
+rownames(ps_phy_venn_obj_binary) <- rownames(ps_phy_venn_obj)
+ps_phy_venn_obj_binary <- as.data.frame(ps_phy_venn_obj_binary)
+ps_phy_upset_order <- colnames(ps_phy_venn_obj_binary)
+
+ps_shared_phy_plot <- upset(ps_phy_venn_obj_binary, nsets = 6,
+                          sets = rev(ps_phy_upset_order),
+                          mainbar.y.label = 'Intersection size',
+                          sets.x.label = 'Phyla per group',
+                          keep.order = T,
+                          order.by = 'freq', 
+                          text.scale = c(2.5, 2, 2.5, 2, 2, 2.5),
+                          sets.bar.color = rev(c("bootie" = "#1B9E77", "highreso" = "#D95F02", "compo" = "#7570B3")))
+ps_shared_phy_plot
+
+
+# relative abundance for phylum calculate
+ps_rel_phylum_otu_table <- data.frame(otu_table(ps_rel_phylum))
+ps_rel_phylum_otu_table$entry_id <- row.names(ps_rel_phylum_otu_table)
+head(ps_rel_phylum_otu_table)
+ps_rel_phylum_otu_table_not_shared <- ps_rel_phylum_otu_table[c("SAR324.clade.Marine.group.B.", "Crenarchaeota", "WPS.2", "entry_id")]
+```
+
+
+# Relative abundance at phylum level
+
+```{r}
+#relative abundance
+ps_rel_phylum <- ps_rel %>% aggregate_taxa(level = "Phylum")
+plot_bar(ps_rel_phylum, fill="Phylum") + facet_wrap(~Type, scales= "free_x", nrow=1)
+ps_rel_phylum_top10 <- ps_rel %>% aggregate_top_taxa(level = "Phylum", top = 10)
+ps_rel_phylum_top10@otu_table
+
+
+plot_bar(ps_rel_phylum_top10, fill="Phylum") + 
+  facet_wrap(~Type, scales= "free_x", nrow=1)+
+  labs(x="sample types", y="value") +
+  theme_bw() +
+  theme(panel.grid = element_blank(), 
+        legend.position = "right",
+        legend.text = element_text(size = 8), 
+        strip.text.x = element_text(size = 11),
+        axis.text = element_text(size = 12, color = "black"),
+        axis.text.x = element_blank(), 
+        axis.title.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title = element_text(size = 14, color = "black", face="bold"))
+ggsave("Figure.relative abundance phylum.pdf", device = "pdf", width = 6, height = 3.5, units = "in")
+```
+
+
+# phyla correlation
+
+```{r}
+ps_rel_phylum_top10 <- ps_rel %>% aggregate_top_taxa(level = "Phylum", top = 10)
+taxa_names(ps_rel_phylum_top10) <- tax_table(ps_rel_phylum_top10)[, "Phylum"]
+ps_phylum_otu_table <- t(as(otu_table(ps_rel_phylum_top10), "matrix"))
+
+ps_phylum_otu_table_boot <- ps_phylum_otu_table[grep("^(b|t)", rownames(ps_phylum_otu_table)), ]
+column_means_boot <- colMeans(ps_phylum_otu_table_boot)
+column_means_boot_df <- as.data.frame(column_means_boot)
+
+ps_phylum_otu_table_comp <- ps_phylum_otu_table[grep("^c", rownames(ps_phylum_otu_table)), ]
+column_means_comp <- colMeans(ps_phylum_otu_table_comp)
+column_means_comp_df <- as.data.frame(column_means_comp)
+
+ps_phylum_otu_table_highreso <- ps_phylum_otu_table[grep("^h", rownames(ps_phylum_otu_table)), ]
+column_means_highreso <- colMeans(ps_phylum_otu_table_highreso)
+column_means_highreso_df <- as.data.frame(column_means_highreso)
+
+cor.test(column_means_boot, column_means_comp, method="spearman")
+cor.test(column_means_boot, column_means_highreso, method="spearman")
+```
+
+
+# Shared genera
+
+```{r}
+# shared at genus level
+ps_rel_Genus <- phyloseq::tax_glom(ps_rel, "Genus")
+phyloseq::taxa_names(ps_rel_Genus) <- phyloseq::tax_table(ps_rel_Genus)[, "Genus"]
+phyloseq::otu_table(ps_rel_Genus)
+
+# Shared genus plot
+ps_rel_Genus_otu <- as.data.frame(t(otu_table(ps_rel_Genus)))
+ps_gen_venn_data <- merge_samples(ps_rel_Genus, 'Type', fun = sum)
+ps_gen_venn_obj <- as.data.frame(t(otu_table(ps_gen_venn_data)))
+ps_gen_venn_obj_binary <- sapply(ps_gen_venn_obj, function(x) ifelse(x > 0, 1, 0),
+                          USE.NAMES = T)
+rownames(ps_gen_venn_obj_binary) <- rownames(ps_gen_venn_obj)
+ps_gen_venn_obj_binary <- as.data.frame(ps_gen_venn_obj_binary)
+ps_gen_upset_order <- colnames(ps_gen_venn_obj_binary)
+ps_shared_gen_plot <- upset(ps_gen_venn_obj_binary, nsets = 6,
+                          sets = rev(ps_phy_upset_order),
+                          mainbar.y.label = 'Intersection size',
+                          sets.x.label = 'Genera per group',
+                          keep.order = T,
+                          order.by = 'freq', 
+                          text.scale = c(2.5, 2, 2.5, 2, 2, 2.5),
+                          sets.bar.color = rev(c("bootie" = "#1B9E77", "highreso" = "#D95F02", "compo" = "#7570B3")))
+ps_shared_gen_plot
+pdf("Figure. ps_shared_gen_plot.pdf", width = 10, height = 5)
+ps_shared_gen_plot
+dev.off()
+
+# relative abundance for specific a phylum/genus
+ps_rel_Genus_otu <- as.data.frame(t(otu_table(ps_rel_Genus)))
+obs <- ps_rel_Genus_otu["Bdellovibrio", ]
+obs <- obs[order(obs)]
+obs
+
+# relative abundance for genus calculate
+ps_rel_phylum_otu_table <- data.frame(otu_table(ps_rel_phylum))
+ps_rel_phylum_otu_table$entry_id <- row.names(ps_rel_phylum_otu_table)
+head(ps_rel_phylum_otu_table)
+```
+
+
+# Relative abundance at genus level
+
+```{r}
+#relative abundance
+ps_rel_Genus <- ps_rel %>% aggregate_taxa(level = "Genus")
+plot_bar(ps_rel_Genus, fill="Genus") + facet_wrap(~Type, scales= "free_x", nrow=1)
+ps_rel_Genus_top10 <- ps_rel %>% aggregate_top_taxa(level = "Genus", top = 10)
+ps_rel_Genus_top10@otu_table
+
+plot_bar(ps_rel_Genus_top10, fill="Genus") + 
+  facet_wrap(~Type, scales= "free_x", nrow=1)+
+  labs(x="sample types", y="value") +
+  theme_bw() +
+  theme(panel.grid = element_blank(), 
+        legend.position = "right",
+        legend.text = element_text(size = 8), 
+        strip.text.x = element_text(size = 11),
+        axis.text = element_text(size = 12, color = "black"),
+        axis.text.x = element_blank(), 
+        axis.title.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title = element_text(size = 14, color = "black", face="bold"))
+ggsave("Figure. relative abundance Genus.pdf", device = "pdf", width = 6, height = 3.5, units = "in")
+```
+
+
+# Genera correlation
+
+```{r}
+ps_rel_Genus_top10 <- ps_rel %>% aggregate_top_taxa(level = "Genus", top = 10)
+taxa_names(ps_rel_Genus_top10) <- tax_table(ps_rel_Genus_top10)[, "Genus"]
+ps_genus_otu_table <- t(as(otu_table(ps_rel_Genus_top10), "matrix"))
+
+ps_genus_otu_table_boot <- ps_genus_otu_table[grep("^(b|t)", rownames(ps_genus_otu_table)), ]
+column_means_genus_boot <- colMeans(ps_genus_otu_table_boot)
+column_means_genus_boot_df <- as.data.frame(column_means_genus_boot)
+
+
+ps_genus_otu_table_comp <- ps_genus_otu_table[grep("^c", rownames(ps_genus_otu_table)), ]
+column_means_genus_comp <- colMeans(ps_genus_otu_table_comp)
+column_means_genus_comp_df <- as.data.frame(column_means_genus_comp)
+
+
+ps_genus_otu_table_highreso <- ps_genus_otu_table[grep("^h", rownames(ps_genus_otu_table)), ]
+column_means_genus_highreso <- colMeans(ps_genus_otu_table_highreso)
+column_means_genus_highreso_df <- as.data.frame(column_means_genus_highreso)
+
+
+cor.test(column_means_genus_boot, column_means_genus_comp, method="spearman")
+cor.test(column_means_genus_boot, column_means_genus_highreso, method="spearman")
+```
+

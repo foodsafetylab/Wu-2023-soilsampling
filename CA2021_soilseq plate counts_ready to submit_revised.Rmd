@@ -1,0 +1,306 @@
+---
+title: "soilseq plate counts"
+output: html_document
+date: "2023-03-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Libraries and path 
+
+```{r}
+library(datasets)
+library(ggplot2)
+library(multcompView)
+library(dplyr)
+library(ggpubr)
+library(tidyverse)
+library(gapminder)
+library(plotly)
+library(grid)
+library(car)
+library(rstatix)
+setwd("C:/Users/jw99/Box/seq/soilseq plate counts") 
+```
+
+
+# Loading and checking the data
+
+```{r}
+soilseq_plate_counts_reorganized <- read.csv("soilseq plate counts reorganized.csv")
+soilseq_plate_counts_boxplot <- read.csv("soilseq plate counts boxplot.csv")
+soilseq_plate_counts_boxplot_reorder <- soilseq_plate_counts_boxplot                           
+soilseq_plate_counts_boxplot_reorder$Sample.type <- factor(soilseq_plate_counts_boxplot_reorder$Sample.type, c("bootie", "highreso", "compo"))
+spc_below_LOD <- dplyr::filter(soilseq_plate_counts_reorganized, present=="below LOD")
+```
+
+
+# Stats
+
+```{r}
+#Shapiro-Wilk test for normality (p > 0.05, normally distributed)
+  ##APC
+  apc_bootie_swab <- dplyr::filter(soilseq_plate_counts_reorganized, Sample.type=="bootie", Count.type =="Aerobic plate counts")
+  shapiro.test(apc_bootie_swab$with.LOD.2) #normally distributed
+  qqnorm(apc_bootie_swab$with.LOD.2);qqline(apc_bootie_swab$with.LOD.2, col = 2)
+  plot(density(apc_bootie_swab$with.LOD.2,na.rm=TRUE))
+  
+  apc_high_resolution <- dplyr::filter(soilseq_plate_counts_reorganized, Sample.type=="highreso", Count.type =="Aerobic plate counts")
+  shapiro.test(apc_high_resolution$with.LOD.2) #not normally distributed
+  qqnorm(apc_high_resolution$with.LOD.2);qqline(apc_high_resolution$with.LOD.2, col = 2)
+  plot(density(apc_high_resolution$with.LOD.2,na.rm=TRUE))
+  
+  apc_composite_grabs <- dplyr::filter(soilseq_plate_counts_reorganized, Sample.type=="compo", Count.type =="Aerobic plate counts")
+  shapiro.test(apc_composite_grabs$with.LOD.2) #normally distributed
+  qqnorm(apc_composite_grabs$with.LOD.2);qqline(apc_composite_grabs$with.LOD.2, col = 2)
+  plot(density(apc_composite_grabs$with.LOD.2,na.rm=TRUE))
+  
+  ##TC
+  tc_bootie_swab <- dplyr::filter(soilseq_plate_counts_reorganized, Sample.type=="bootie", Count.type =="Total coliforms")
+  shapiro.test(tc_bootie_swab$with.LOD.2) #normally distributed
+  qqnorm(tc_bootie_swab$with.LOD.2);qqline(tc_bootie_swab$with.LOD.2, col = 2)
+  plot(density(tc_bootie_swab$with.LOD.2,na.rm=TRUE))
+  
+  tc_high_resolution <- dplyr::filter(soilseq_plate_counts_reorganized, Sample.type=="highreso", Count.type =="Total coliforms")
+  shapiro.test(tc_high_resolution$with.LOD.2) #not normally distributed
+  qqnorm(tc_high_resolution$with.LOD.2);qqline(tc_high_resolution$with.LOD.2, col = 2)
+  plot(density(tc_high_resolution$with.LOD.2,na.rm=TRUE))
+  
+  
+  tc_composite_grabs <- dplyr::filter(soilseq_plate_counts_reorganized, Sample.type=="compo", Count.type =="Total coliforms")
+  shapiro.test(tc_composite_grabs$with.LOD.2) #not normally distributed
+  qqnorm(tc_composite_grabs$with.LOD.2);qqline(tc_composite_grabs$with.LOD.2, col = 2)
+  plot(density(tc_composite_grabs$with.LOD.2,na.rm=TRUE))
+  
+  ##EC
+  ec_bootie_swab <- dplyr::filter(soilseq_plate_counts_reorganized, Sample.type=="bootie", Count.type =="Generic E. coli")
+  shapiro.test(ec_bootie_swab$with.LOD.2) #not normally distributed
+  qqnorm(ec_bootie_swab$with.LOD.2);qqline(ec_bootie_swab$with.LOD.2, col = 2)
+  plot(density(ec_bootie_swab$with.LOD.2,na.rm=TRUE))
+  
+  ec_high_resolution <- dplyr::filter(soilseq_plate_counts_reorganized, Sample.type=="highreso", Count.type =="Generic E. coli")
+#  shapiro.test(ec_high_resolution$with.LOD.2) #not normally distributed
+#  qqnorm(ec_high_resolution$with.LOD.2);qqline(ec_high_resolution$with.LOD.2, col = 2)
+#  plot(density(ec_high_resolution$with.LOD.2,na.rm=TRUE))
+  
+  ec_composite_grabs <- dplyr::filter(soilseq_plate_counts_reorganized, Sample.type=="compo", Count.type =="Generic E. coli")
+#  shapiro.test(ec_composite_grabs$with.LOD.2) #not normally distributed
+#  qqnorm(ec_composite_grabs$with.LOD.2);qqline(ec_composite_grabs$with.LOD.2, col = 2)
+#  plot(density(ec_composite_grabs$with.LOD.2,na.rm=TRUE))
+
+soilseq_plate_counts_reorganized$Sample.type <- factor(soilseq_plate_counts_reorganized$Sample.type, c("bootie", "compo", "highreso"))
+
+spc_APC <- dplyr::filter(soilseq_plate_counts_reorganized, Count.type=="Aerobic plate counts")
+spc_TC <- dplyr::filter(soilseq_plate_counts_reorganized, Count.type=="Total coliforms")
+spc_ge <- dplyr::filter(soilseq_plate_counts_reorganized, Count.type=="Generic E. coli")
+
+by(spc_APC,spc_APC$Sample.type, summary)
+by(spc_APC$with.LOD.2, spc_APC$Sample.type, sd)
+
+by(spc_TC,spc_TC$Sample.type, summary)
+by(spc_TC$with.LOD.2, spc_TC$Sample.type, sd)
+
+by(spc_ge,spc_ge$Sample.type, summary)
+by(spc_ge$with.LOD.2, spc_ge$Sample.type, sd)
+```
+
+
+# Figure with log CFU/g
+
+```{r}
+my_colors <- c("bootie" = "#1B9E77","highreso"= "#D95F02", "compo" = "#7570B3") 
+my_shapes <- c("bootie" = 19, "highreso" = 17, "compo" = 18)
+
+#figure
+p <- ggboxplot(soilseq_plate_counts_reorganized, x = "Sample.type", y = "with.LOD.2", color = "black", shape = "Sample.type", palette = "Dark2", outlier.shape = NA, add.params = list(color = "Sample.type", alpha = 0.4), facet.by = "Count.type", short.panel.labs = TRUE) +
+  facet_grid(~factor(Count.type, levels=c('Aerobic plate counts', 'Total coliforms', 'Generic E. coli'))) +
+  labs(x="Sample types", y="Bacteria counts (Log CFU/g)") +
+  scale_fill_brewer(palette = "Pastel1") +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), legend.position = "none")+
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(axis.text = element_text(size = 12, color = "black"), axis.text.x = element_text(hjust=0.5),) +
+  theme(axis.title = element_text(size = 14, color = "black", face="bold")) +
+  ylim(0, 10) +
+  geom_jitter(data = spc_below_LOD, aes(alpha = 0.8, shape = Sample.type, colour = Sample.type), fill= "NA", position = position_jitter(0.21), size = 0.8) +
+  geom_jitter(data = soilseq_plate_counts_boxplot_reorder, aes(colour = Sample.type, fill= Sample.type, alpha = 0.8, shape = Sample.type), position = position_jitter(0.21), size = 0.8) +
+  scale_y_continuous(breaks=seq(0,9,1)) +
+  scale_color_manual(values = c("bootie" = "#1B9E77","highreso"= "#D95F02", "compo" = "#7570B3")) +
+  scale_fill_manual(values = c("bootie" = "#1B9E77","highreso"= "#D95F02", "compo" = "#7570B3")) +
+  stat_summary(fun = mean, geom = "point", size = 2, color = "black") +
+  scale_shape_manual(values = c("bootie" = 21, "highreso" = 24, "compo" = 22))
+p
+
+#add stats to figure
+compare <- compare_means(with.LOD.2 ~ Sample.type, data=soilseq_plate_counts_reorganized, group.by = "Count.type")
+compare
+
+kruskal.test(with.LOD.2 ~ Sample.type, data = spc_APC)
+kruskal.test(with.LOD.2 ~ Sample.type, data = spc_TC)
+kruskal.test(with.LOD.2 ~ Sample.type, data = spc_ge)
+
+my_comparisons <- list( c("bootie", "highreso"), c("compo", "bootie"))
+p + 
+  stat_compare_means(data=spc_APC, comparisons = my_comparisons, label.y = c(8, 8.5, 9.3)) +
+  stat_compare_means(data=spc_TC, comparisons = my_comparisons, label.y = c(5, 5.5, 6.3)) +
+  stat_compare_means(data=spc_ge, comparisons = my_comparisons, label.y = c(2, 2.5)) 
+
+#ggsave("Fig. soilseq plate counts.pdf", device = "pdf", width = 5, height = 3.5, units = "in")
+```
+
+
+#Figure with CFU/g
+```{r}
+soilseq_plate_counts_reorganized_before_log <- read.csv("soilseq plate counts reorganized_before log.csv")
+soilseq_plate_counts_boxplot_before_log <- read.csv("soilseq plate counts boxplot_before log.csv")
+soilseq_plate_counts_boxplot_reorder_before_log <- soilseq_plate_counts_boxplot_before_log                           
+soilseq_plate_counts_boxplot_reorder_before_log$Sample.type <- factor(soilseq_plate_counts_boxplot_reorder_before_log$Sample.type, c("bootie", "highreso", "compo"))
+spc_below_LOD_before_log <- dplyr::filter(soilseq_plate_counts_reorganized_before_log, present=="below LOD")
+```
+
+
+# Stats
+
+```{r}
+#Shapiro-Wilk test for normality (p > 0.05, normally distributed)
+  ##APC
+  apc_bootie_swab_before_log <- dplyr::filter(soilseq_plate_counts_reorganized_before_log, Sample.type=="bootie", Count.type =="Aerobic plate counts")
+  shapiro.test(apc_bootie_swab_before_log$CFU.g.with.LOD.2) #normally distributed
+  qqnorm(apc_bootie_swab_before_log$CFU.g.with.LOD.2);qqline(apc_bootie_swab_before_log$CFU.g.with.LOD.2, col = 2)
+  plot(density(apc_bootie_swab_before_log$CFU.g.with.LOD.2,na.rm=TRUE))
+  
+  apc_high_resolution_before_log <- dplyr::filter(soilseq_plate_counts_reorganized_before_log, Sample.type=="highreso", Count.type =="Aerobic plate counts")
+  shapiro.test(apc_high_resolution_before_log$CFU.g.with.LOD.2) #not normally distributed
+  qqnorm(apc_high_resolution_before_log$CFU.g.with.LOD.2);qqline(apc_high_resolution_before_log$CFU.g.with.LOD.2, col = 2)
+  plot(density(apc_high_resolution_before_log$CFU.g.with.LOD.2,na.rm=TRUE))
+  
+  apc_composite_grabs_before_log <- dplyr::filter(soilseq_plate_counts_reorganized_before_log, Sample.type=="compo", Count.type =="Aerobic plate counts")
+  shapiro.test(apc_composite_grabs_before_log$CFU.g.with.LOD.2) #normally distributed
+  qqnorm(apc_composite_grabs_before_log$CFU.g.with.LOD.2);qqline(apc_composite_grabs_before_log$CFU.g.with.LOD.2, col = 2)
+  plot(density(apc_composite_grabs_before_log$CFU.g.with.LOD.2,na.rm=TRUE))
+  
+  ##TC
+  tc_bootie_swab_before_log <- dplyr::filter(soilseq_plate_counts_reorganized_before_log, Sample.type=="bootie", Count.type =="Total coliforms")
+  shapiro.test(tc_bootie_swab_before_log$CFU.g.with.LOD.2) #normally distributed
+  qqnorm(tc_bootie_swab_before_log$CFU.g.with.LOD.2);qqline(tc_bootie_swab_before_log$CFU.g.with.LOD.2, col = 2)
+  plot(density(tc_bootie_swab_before_log$CFU.g.with.LOD.2,na.rm=TRUE))
+  
+  tc_high_resolution_before_log <- dplyr::filter(soilseq_plate_counts_reorganized_before_log, Sample.type=="highreso", Count.type =="Total coliforms")
+  shapiro.test(tc_high_resolution_before_log$CFU.g.with.LOD.2) #not normally distributed
+  qqnorm(tc_high_resolution_before_log$CFU.g.with.LOD.2);qqline(tc_high_resolution_before_log$CFU.g.with.LOD.2, col = 2)
+  plot(density(tc_high_resolution_before_log$CFU.g.with.LOD.2,na.rm=TRUE))
+  
+  
+  tc_composite_grabs_before_log <- dplyr::filter(soilseq_plate_counts_reorganized_before_log, Sample.type=="compo", Count.type =="Total coliforms")
+  shapiro.test(tc_composite_grabs_before_log$CFU.g.with.LOD.2) #not normally distributed
+  qqnorm(tc_composite_grabs_before_log$CFU.g.with.LOD.2);qqline(tc_composite_grabs_before_log$CFU.g.with.LOD.2, col = 2)
+  plot(density(tc_composite_grabs_before_log$CFU.g.with.LOD.2,na.rm=TRUE))
+  
+  ##EC
+  ec_bootie_swab_before_log <- dplyr::filter(soilseq_plate_counts_reorganized_before_log, Sample.type=="bootie", Count.type =="Generic E. coli")
+  shapiro.test(ec_bootie_swab_before_log$CFU.g.with.LOD.2) #not normally distributed
+  qqnorm(ec_bootie_swab_before_log$CFU.g.with.LOD.2);qqline(ec_bootie_swab_before_log$CFU.g.with.LOD.2, col = 2)
+  plot(density(ec_bootie_swab_before_log$CFU.g.with.LOD.2,na.rm=TRUE))
+  
+  ec_high_resolution_before_log <- dplyr::filter(soilseq_plate_counts_reorganized_before_log, Sample.type=="highreso", Count.type =="Generic E. coli")
+#  shapiro.test(ec_high_resolution_before_log$CFU.g.with.LOD.2) #not normally distributed
+#  qqnorm(ec_high_resolution_before_log$CFU.g.with.LOD.2);qqline(ec_high_resolution_before_log$CFU.g.with.LOD.2, col = 2)
+#  plot(density(ec_high_resolution_before_log$CFU.g.with.LOD.2,na.rm=TRUE))
+  
+  ec_composite_grabs_before_log <- dplyr::filter(soilseq_plate_counts_reorganized_before_log, Sample.type=="compo", Count.type =="Generic E. coli")
+#  shapiro.test(ec_composite_grabs_before_log$CFU.g.with.LOD.2) #not normally distributed
+#  qqnorm(ec_composite_grabs_before_log$CFU.g.with.LOD.2);qqline(ec_composite_grabs_before_log$CFU.g.with.LOD.2, col = 2)
+#  plot(density(ec_composite_grabs_before_log$CFU.g.with.LOD.2,na.rm=TRUE))
+
+soilseq_plate_counts_reorganized_before_log$Sample.type <- factor(soilseq_plate_counts_reorganized_before_log$Sample.type, c("bootie", "compo", "highreso"))
+
+spc_APC_before_log <- dplyr::filter(soilseq_plate_counts_reorganized_before_log, Count.type=="Aerobic plate counts")
+spc_TC_before_log <- dplyr::filter(soilseq_plate_counts_reorganized_before_log, Count.type=="Total coliforms")
+spc_ge_before_log <- dplyr::filter(soilseq_plate_counts_reorganized_before_log, Count.type=="Generic E. coli")
+
+by(spc_APC_before_log,spc_APC_before_log$Sample.type, summary)
+by(spc_APC_before_log$CFU.g.with.LOD.2, spc_APC_before_log$Sample.type, sd)
+
+by(spc_TC_before_log,spc_TC_before_log$Sample.type, summary)
+by(spc_TC_before_log$CFU.g.with.LOD.2, spc_TC_before_log$Sample.type, sd)
+
+by(spc_ge_before_log,spc_ge_before_log$Sample.type, summary)
+by(spc_ge_before_log$CFU.g.with.LOD.2, spc_ge_before_log$Sample.type, sd)
+```
+
+
+```{r}
+#figure
+p <- ggboxplot(soilseq_plate_counts_reorganized_before_log, x = "Sample.type", y = "CFU.g.with.LOD.2", color = "black", shape = "Sample.type", palette = "Dark2", outlier.shape = NA, add.params = list(color = "Sample.type", alpha = 0.4), facet.by = "Count.type", short.panel.labs = TRUE) +
+  facet_wrap(~factor(Count.type, levels=c('Aerobic plate counts', 'Total coliforms', 'Generic E. coli')), scales = "free_y") +
+ # scale_y_continuous( trans= 'log10') +
+  labs(x="Sample types", y="Bacteria counts CFU/g") +
+  scale_fill_brewer(palette = "Pastel1") +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), legend.position = "none")+
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(axis.text = element_text(size = 12, color = "black"), axis.text.x = element_text(hjust=0.5),) +
+  theme(axis.title = element_text(size = 14, color = "black", face="bold")) +
+#  ylim(0, 10) +
+  geom_jitter(data = spc_below_LOD_before_log, aes(alpha = 0.8, shape = Sample.type, colour = Sample.type), fill= "NA", position = position_jitter(0.21), size = 0.8) +
+  geom_jitter(data = soilseq_plate_counts_boxplot_reorder_before_log, aes(colour = Sample.type, fill= Sample.type, alpha = 0.8, shape = Sample.type), position = position_jitter(0.21), size = 0.8) +
+#  scale_y_continuous(breaks=seq(0,9,1)) +
+  scale_color_manual(values = c("bootie" = "#1B9E77","highreso"= "#D95F02", "compo" = "#7570B3")) +
+  scale_fill_manual(values = c("bootie" = "#1B9E77","highreso"= "#D95F02", "compo" = "#7570B3")) +
+  stat_summary(fun = mean, geom = "point", size = 2, color = "black") +
+  scale_shape_manual(values = c("bootie" = 21, "highreso" = 24, "compo" = 22))
+p
+#add stats to figure
+kruskal.test(CFU.g.with.LOD.2 ~ Sample.type, data = spc_APC_before_log)
+kruskal.test(CFU.g.with.LOD.2 ~ Sample.type, data = spc_TC_before_log)
+kruskal.test(CFU.g.with.LOD.2 ~ Sample.type, data = spc_ge_before_log)
+
+my_comparisons <- list( c("bootie", "highreso"), c("compo", "bootie"))
+p + 
+  stat_compare_means(data=spc_APC_before_log, comparisons = my_comparisons, label.y = c(40000000, 43000000)) +
+  stat_compare_means(data=spc_TC_before_log, comparisons = my_comparisons, label.y = c(40000, 43000)) +
+  stat_compare_means(data=spc_ge_before_log, comparisons = my_comparisons, label.y = c(60, 65)) 
+#ggsave("Fig. soilseq plate counts with CFU.g.pdf", device = "pdf", width = 6, height = 3.5, units = "in")
+
+#figure log scale
+p <- ggboxplot(soilseq_plate_counts_reorganized_before_log, x = "Sample.type", y = "CFU.g.with.LOD.2", color = "black", shape = "Sample.type", palette = "Dark2", outlier.shape = NA, add.params = list(color = "Sample.type", alpha = 0.4), facet.by = "Count.type", short.panel.labs = TRUE) +
+  facet_wrap(~factor(Count.type, levels=c('Aerobic plate counts', 'Total coliforms', 'Generic E. coli'))) +
+  scale_y_continuous( trans= 'log10') +
+  labs(x="Sample types", y="Bacteria counts CFU/g") +
+  scale_fill_brewer(palette = "Pastel1") +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(), legend.position = "none")+
+  theme(strip.text.x = element_text(size = 11)) +
+  theme(axis.text = element_text(size = 12, color = "black"), axis.text.x = element_text(hjust=0.5),) +
+  theme(axis.title = element_text(size = 14, color = "black", face="bold")) +
+#  ylim(0, 10) +
+  geom_jitter(data = spc_below_LOD_before_log, aes(alpha = 0.8, shape = Sample.type, colour = Sample.type), fill= "NA", position = position_jitter(0.21), size = 0.8) +
+  geom_jitter(data = soilseq_plate_counts_boxplot_reorder_before_log, aes(colour = Sample.type, fill= Sample.type, alpha = 0.8, shape = Sample.type), position = position_jitter(0.21), size = 0.8) +
+#  scale_y_continuous(breaks=seq(0,9,1)) +
+  scale_color_manual(values = c("bootie" = "#1B9E77","highreso"= "#D95F02", "compo" = "#7570B3")) +
+  scale_fill_manual(values = c("bootie" = "#1B9E77","highreso"= "#D95F02", "compo" = "#7570B3")) +
+  stat_summary(fun = mean, geom = "point", size = 2, color = "black") +
+  scale_shape_manual(values = c("bootie" = 21, "highreso" = 24, "compo" = 22))
+p
+
+#add stats to figure
+compare <- compare_means(CFU.g.with.LOD.2 ~ Sample.type, data=soilseq_plate_counts_reorganized_before_log, group.by = "Count.type")
+compare
+
+kruskal.test(CFU.g.with.LOD.2 ~ Sample.type, data = spc_APC_before_log)
+kruskal.test(CFU.g.with.LOD.2 ~ Sample.type, data = spc_TC_before_log)
+kruskal.test(CFU.g.with.LOD.2 ~ Sample.type, data = spc_ge_before_log)
+
+my_comparisons <- list( c("bootie", "highreso"), c("compo", "bootie"))
+p + 
+  stat_compare_means(data=spc_APC_before_log, comparisons = my_comparisons, label.y = c(8, 8.5, 9.3)) +
+  stat_compare_means(data=spc_TC_before_log, comparisons = my_comparisons, label.y = c(5, 5.5, 6.3)) +
+  stat_compare_means(data=spc_ge_before_log, comparisons = my_comparisons, label.y = c(2, 2.5)) 
+
+#ggsave("Fig. soilseq plate counts with CFU.g in log scale.pdf", device = "pdf", width = 5, height = 3.5, units = "in")
+```
+
+

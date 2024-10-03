@@ -5,10 +5,18 @@ Aggregative boot cover sampling may be a more representative, practical, and pow
 
 ## Usage
 ### Setup
-Mention the environment the code was run on during development and testing as well as any dependencies that are needed.
-
-### Running
-Explain in detailed steps how to run the code in order to reproduce the results shown above in the results section.
+Data analysis was performed in [R](https://cloud.r-project.org/) and [RStudio Desktop](https://posit.co/download/rstudio-desktop/) with the following packages:
+* datasets
+* ggplot2
+* multcompView
+* dplyr
+* ggpubr
+* tidyverse
+* gapminder
+* plotly
+* grid
+* car
+* rstatix
 
 ## Authors
 You can view the list of authors in the [AUTHORS](/AUTHORS) file.
@@ -27,9 +35,6 @@ Wu, J., R. J. Gathman, J. Quintanilla Portillo, C. Gaulke, M. Kim, and M. J. Sta
 
 ## License
 This project's code is licensed under the GNU General Public License v3.0 and dataset is licensed the Creative Commons Attribution Share Alike 4.0 International license. Please see the [LICENSE.code](/LICENSE.code) and [LICENSE.dataset](/LICENSE.dataset) files for details.
-
-## Acknowledgements
-Include acknowledgements relevant to the project here.
 
 ## Funding
 This study was funded by the USDA National Institute of Food and Agriculture, Agricultural and Food Research Initiative Competitive Program – Food Safety and Defense Program, grant number: 
